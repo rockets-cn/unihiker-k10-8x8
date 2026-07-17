@@ -1,2 +1,4 @@
 build/
 .claude/
+.omx/
+.DS_Store
