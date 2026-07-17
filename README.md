@@ -17,7 +17,7 @@
 
 ![K10 摄像头与 TOF 8x8 深度网格实时叠加画面](docs/images/tof-camera-overlay-live.png)
 
-K10 实际运行画面：摄像头图像与 TOF 8x8 深度数据在浏览器中实时叠加。
+K10 实际运行画面（`overlay-v7`，由 PlatformIO 编译上传）：摄像头图像与 TOF 8x8 深度数据在浏览器中实时叠加，页面同时显示本机绘制、浏览器相机和 TOF 采样帧率。
 
 ## 硬件
 
