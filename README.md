@@ -1,5 +1,7 @@
 # unihiker-k10-8x8
 
+**中文** | [English](README_EN.md)
+
 在行空板 K10(UNIHIKER K10)上,将 DFRobot MatrixLidar TOF 传感器的 8x8 深度数据以彩色网格形式实时叠加到摄像头画面上。
 
 ## 效果
