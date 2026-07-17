@@ -2,7 +2,7 @@
 #include "DFRobot_MatrixLidar.h"
 
 UNIHIKER_K10 k10;
-DFRobot_MatrixLidar_I2C tof(0x33);
+DFRobot_MatrixLidar_I2C tof(0x31);
 
 uint16_t depthBuf[64];
 
@@ -17,6 +17,8 @@ bool prevA = false;
 bool prevB = false;
 unsigned long pressAStart = 0;
 unsigned long pressBStart = 0;
+unsigned long lastAdjustA = 0;
+unsigned long lastAdjustB = 0;
 
 // 帧率控制
 unsigned long lastDraw = 0;
@@ -31,6 +33,9 @@ unsigned long fpsTime = 0;
 
 // 显示缓冲
 uint32_t prevColor[64];
+int prevOffsetX = 0;
+int prevOffsetY = 40;
+String prevText = "";
 
 void rotate180(uint16_t *buf) {
   for (int i = 0; i < 32; i++) {
@@ -58,13 +63,23 @@ uint32_t distanceToColor(uint16_t mm) {
 void drawGrid() {
   unsigned long t0 = micros();
 
-  k10.canvas->canvasClear();
+  // 校准偏移变化：擦除旧网格区域，强制全量重绘
+  if (offsetX != prevOffsetX || offsetY != prevOffsetY) {
+    k10.canvas->clearLocalCanvas(prevOffsetX, prevOffsetY, 8 * cellW, 8 * cellH);
+    memset(prevColor, 0xFF, sizeof(prevColor));
+    prevOffsetX = offsetX;
+    prevOffsetY = offsetY;
+  }
 
-  // 顶栏：校准参数 + 帧率
-  k10.canvas->canvasText(
-    String("X:") + String(offsetX) + " Y:" + String(offsetY) + " F:" + String(drawFps),
-    0, 0, 0xFFFFFF,
-    k10.canvas->eCNAndENFont16, 240, false);
+  // 顶栏：内容变化时先擦文字条再重写，避免叠字残影
+  String info = String("X:") + String(offsetX) + " Y:" + String(offsetY) + " F:" + String(drawFps);
+  if (info != prevText) {
+    k10.canvas->clearLocalCanvas(0, 0, 240, 16);
+    k10.canvas->canvasText(
+      info, 0, 0, 0xFFFFFF,
+      k10.canvas->eCNAndENFont16, 240, false);
+    prevText = info;
+  }
 
   for (int i = 0; i < 64; i++) {
     uint16_t d = depthBuf[i];
@@ -79,6 +94,7 @@ void drawGrid() {
       c = distanceToColor(d);
     }
 
+    // 不透明覆盖，只画颜色变化的格子，无需擦除
     if (c == prevColor[i]) continue;
     prevColor[i] = c;
 
@@ -135,16 +151,28 @@ void loop() {
   bool curA = k10.buttonA->isPressed();
   bool curB = k10.buttonB->isPressed();
 
-  if (curA && !prevA) pressAStart = now;
-  if (curA && prevA && (now - pressAStart > 500)) offsetX -= 2;
-  else if (!curA && prevA && (now - pressAStart < 500)) offsetX += 2;
+  if (curA && !prevA) { pressAStart = now; lastAdjustA = now; }
+  if (curA && prevA && (now - pressAStart > 500) && (now - lastAdjustA >= 120)) {
+    offsetX -= 2;
+    lastAdjustA = now;
+  } else if (!curA && prevA && (now - pressAStart < 500)) {
+    offsetX += 2;
+  }
 
-  if (curB && !prevB) pressBStart = now;
-  if (curB && prevB && (now - pressBStart > 500)) offsetY -= 2;
-  else if (!curB && prevB && (now - pressBStart < 500)) offsetY += 2;
+  if (curB && !prevB) { pressBStart = now; lastAdjustB = now; }
+  if (curB && prevB && (now - pressBStart > 500) && (now - lastAdjustB >= 120)) {
+    offsetY -= 2;
+    lastAdjustB = now;
+  } else if (!curB && prevB && (now - pressBStart < 500)) {
+    offsetY += 2;
+  }
 
   prevA = curA;
   prevB = curB;
+
+  // 钳制在屏幕范围内（240x320，网格 224x224）
+  offsetX = constrain(offsetX, 0, 240 - 8 * cellW);
+  offsetY = constrain(offsetY, 0, 320 - 8 * cellH);
 
   // 定时刷新画面
   if (now - lastDraw >= DRAW_INTERVAL) {

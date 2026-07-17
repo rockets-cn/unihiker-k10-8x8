@@ -15,7 +15,7 @@
 ## 硬件
 
 - 行空板 K10(UNIHIKER K10)
-- DFRobot MatrixLidar TOF 传感器(I2C,地址 `0x33`,400kHz)
+- DFRobot MatrixLidar TOF 传感器(I2C,地址 `0x31`,400kHz)
 
 ## 依赖库
 
