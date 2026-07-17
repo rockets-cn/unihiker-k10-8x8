@@ -5,13 +5,25 @@
 #include "esp_camera.h"
 #include "img_converters.h"
 
+#if __has_include("wifi_secrets.h")
+#include "wifi_secrets.h"
+#endif
+
+#ifndef WIFI_SSID_VALUE
+#define WIFI_SSID_VALUE "YOUR_WIFI_SSID"
+#endif
+
+#ifndef WIFI_PASSWORD_VALUE
+#define WIFI_PASSWORD_VALUE "YOUR_WIFI_PASSWORD"
+#endif
+
 // unihiker_k10 库内部的摄像头帧队列（RGB565 QVGA）
 extern QueueHandle_t xQueueCamer;
 
 // WiFi 配置：改成你的 WiFi 名称和密码
-const char* WIFI_SSID = "YOUR_WIFI_SSID";
-const char* WIFI_PASSWORD = "YOUR_WIFI_PASSWORD";
-const char* APP_VERSION = "overlay-v6";
+const char* WIFI_SSID = WIFI_SSID_VALUE;
+const char* WIFI_PASSWORD = WIFI_PASSWORD_VALUE;
+const char* APP_VERSION = "overlay-v7";
 
 UNIHIKER_K10 k10;
 DFRobot_MatrixLidar_I2C tof(0x31);
@@ -183,7 +195,7 @@ button.gray{background:#777}
 <button class="gray" onclick="clearSaved()">清空记录</button>
 </div>
 <div id="saved"></div>
-<div class="version">overlay-v6</div>
+<div class="version">overlay-v7</div>
 <script>
 const cells=[];
 const grid=document.getElementById('grid');
@@ -376,27 +388,42 @@ void startWebServer() {
   }
 }
 
+void beginWifiConnection() {
+  if (strcmp(WIFI_SSID, "YOUR_WIFI_SSID") == 0) {
+    // 未提供本地配置时，尝试使用 ESP32 NVS 中保存的网络。
+    WiFi.begin();
+  } else {
+    WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+  }
+}
+
 void setupWifi() {
   WiFi.mode(WIFI_STA);
-  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+  beginWifiConnection();
   Serial.print("WiFi connecting");
-  unsigned long t0 = millis();
-  while (WiFi.status() != WL_CONNECTED && millis() - t0 < 15000) {
-    delay(300);
-    Serial.print('.');
-  }
-  if (WiFi.status() != WL_CONNECTED) {
-    Serial.println("\nWiFi failed, offline mode");
+  lastWifiCheck = millis();
+}
+
+void updateWifi(unsigned long now) {
+  if (WiFi.status() == WL_CONNECTED) {
+    if (!serverStarted) {
+      Serial.println();
+      Serial.print("WiFi OK, IP: ");
+      Serial.println(WiFi.localIP());
+      startWebServer();
+      // 屏幕第二行显示 IP（顶栏下方）
+      k10.canvas->canvasText(WiFi.localIP().toString(), 0, 16, 0x00FF00,
+                             k10.canvas->eCNAndENFont16, 240, false);
+      k10.canvas->updateCanvas();
+    }
     return;
   }
-  Serial.println();
-  Serial.print("WiFi OK, IP: ");
-  Serial.println(WiFi.localIP());
-  startWebServer();
-  // 屏幕第二行显示 IP（顶栏下方）
-  k10.canvas->canvasText(WiFi.localIP().toString(), 0, 16, 0x00FF00,
-                         k10.canvas->eCNAndENFont16, 240, false);
-  k10.canvas->updateCanvas();
+
+  if (now - lastWifiCheck >= 10000) {
+    lastWifiCheck = now;
+    Serial.print('.');
+    beginWifiConnection();
+  }
 }
 
 void drawGrid() {
@@ -475,9 +502,8 @@ void setup() {
     Serial.println("TOF task failed");
   }
 
-  setupWifi();
-
   k10.setBgCamerImage(true);
+  setupWifi();
   fpsTime = millis();
   lastDraw = millis();
 }
@@ -485,14 +511,9 @@ void setup() {
 void loop() {
   unsigned long now = millis();
 
-  // Web 请求处理 + 断线重连
-  if (serverStarted) {
-    if (webTaskHandle == NULL) server.handleClient();
-    if (WiFi.status() != WL_CONNECTED && now - lastWifiCheck > 10000) {
-      lastWifiCheck = now;
-      WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-    }
-  }
+  // WiFi 非阻塞连接；离线不影响本机摄像头与 TOF 网格刷新。
+  updateWifi(now);
+  if (serverStarted && webTaskHandle == NULL) server.handleClient();
 
   // 按钮 A=X, B=Y
   bool curA = k10.buttonA->isPressed();

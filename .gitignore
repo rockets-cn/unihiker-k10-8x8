@@ -1,5 +1,6 @@
 build/
 .pio/
+include/wifi_secrets.h
 .claude/
 .omx/
 .DS_Store
