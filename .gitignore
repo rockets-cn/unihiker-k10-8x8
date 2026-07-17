@@ -1,4 +1,5 @@
 build/
+.pio/
 .claude/
 .omx/
 .DS_Store
