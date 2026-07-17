@@ -195,7 +195,7 @@ button.gray{background:#777}
 <button class="gray" onclick="clearSaved()">清空记录</button>
 </div>
 <div id="saved"></div>
-<div class="version">overlay-v7</div>
+<div class="version" id="version"></div>
 <script>
 const cells=[];
 const grid=document.getElementById('grid');
@@ -212,6 +212,7 @@ async function refresh(){
   try{
     const j=await(await fetch('/data')).json();
     document.getElementById('info').textContent=`${j.v} X:${j.x} Y:${j.y} LCD:${j.f} CAM:${cameraFps} TOF:${j.tf} 已存:${j.n}`;
+    document.getElementById('version').textContent=j.v;
     j.d.forEach((mm,i)=>{cells[i].style.background=distColor(mm);cells[i].textContent=(mm==0||mm>3500)?'--':mm;});
   }catch(e){}
   setTimeout(refresh,100);
